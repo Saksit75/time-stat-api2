@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model name_title {
+  id          Int       @id @default(autoincrement())
+  title_th    String
+  title_en    String?
+  create_by   Int?
+  create_date DateTime? @default(now())
+  update_by   Int?
+  update_date DateTime? @default(now())
+  students    student[]
+  teachers    teacher[]
+}
+
+model student {
+  id                   Int          @id @default(autoincrement())
+  status               String
+  photo_id             String?
+  photo                String?
+  title                Int
+  first_name           String
+  last_name            String
+  gender               String?
+  id_card              String?
+  student_id           String?
+  class_level          Int?
+  student_number       String?
+  detail               String?      @db.Text
+  create_by            Int?
+  create_date          DateTime?    @default(now())
+  update_by            Int?
+  update_date          DateTime?    @default(now())
+  class_level_relation class_level? @relation(fields: [class_level], references: [id])
+  title_relation       name_title   @relation(fields: [title], references: [id])
+
+  @@index([class_level], map: "student_class_level_fkey")
+  @@index([title], map: "student_title_fkey")
+}
+
+model teacher {
+  id                   Int          @id @default(autoincrement())
+  status               String
+  photo_id             String?
+  photo                String?
+  title                Int
+  first_name           String
+  last_name            String
+  gender               String?
+  id_card              String?
+  class_level          Int?
+  subject              String?
+  phone                String?
+  username             String?      @unique
+  role                 String
+  detail               String?      @db.Text
+  password             String?
+  create_by            Int?
+  create_date          DateTime?    @default(now())
+  update_by            Int?
+  update_date          DateTime?    @default(now())
+  class_level_relation class_level? @relation(fields: [class_level], references: [id])
+  title_relation       name_title   @relation(fields: [title], references: [id])
+
+  @@index([class_level], map: "teacher_class_level_fkey")
+  @@index([title], map: "teacher_title_fkey")
+}
+
+model class_level {
+  id               Int                @id @default(autoincrement())
+  class_level_th   String
+  class_level_en   String?
+  create_by        Int?
+  create_date      DateTime?          @default(now())
+  update_by        Int?
+  update_date      DateTime?          @default(now())
+  students         student[]
+  teachers         teacher[]
+  timeStats        time_stat[]
+  time_stat_detail time_stat_detail[]
+}
+
+model time_stat {
+  id                   Int                @id @default(autoincrement())
+  date_time_stat_id    Int
+  date                 DateTime
+  class_level          Int
+  teacher              Int
+  amount_male          Int?
+  amount_female        Int?
+  amount_count         Int?               @default(0)
+  come_male            Int?
+  come_female          Int?
+  come_count           Int?               @default(0)
+  not_come_male        Int?
+  not_come_female      Int?
+  not_come_count       Int?               @default(0)
+  absent               Int
+  sleave               Int
+  sick                 Int
+  late                 Int
+  remark               String?
+  create_by            Int?
+  create_date          DateTime?          @default(now())
+  update_by            Int?
+  update_date          DateTime?          @default(now())
+  class_level_relation class_level        @relation(fields: [class_level], references: [id])
+  time_stat_detail     time_stat_detail[]
+}
+
+model time_stat_detail {
+  id                   Int         @id @default(autoincrement())
+  time_stat_id         Int
+  s_id                 Int
+  student_id           String?     @db.VarChar(255)
+  student_title        String?     @db.VarChar(255)
+  student_first_name   String
+  student_last_name    String
+  student_gender       String
+  student_class_level  Int
+  student_number       String
+  remark               String?
+  create_by            Int?
+  create_date          DateTime?   @default(now())
+  update_by            Int?
+  update_date          DateTime?   @default(now())
+  time_stat_relation   time_stat?  @relation(fields: [time_stat_id], references: [id])
+  class_level_relation class_level @relation(fields: [student_class_level], references: [id])
+}
+
+model date_time_stat {
+  id             Int       @id @default(autoincrement())
+  date_time_stat DateTime  @db.DateTime(0)
+  create_by      Int?
+  create_date    DateTime? @default(now()) @db.DateTime(0)
+  update_by      Int?
+  update_date    DateTime? @default(now()) @db.DateTime(0)
+}
