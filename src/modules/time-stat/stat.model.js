@@ -107,7 +107,7 @@ const createTimeStat = async (data, userActionId) => {
                 time_stat: allInsertedStats,
                 time_stat_detail: allStudentDetails,
             };
-        });
+        }, { timeout: 60000 });
 
         return {
             message: "success",
@@ -398,7 +398,7 @@ const updateTimeStat = async (id, data, userActionId) => {
         time_stat: allInsertedStats,
         time_stat_detail: allStudentDetails,
       };
-    });
+    }, { timeout: 60000 });
 
     return {
       message: "success",
