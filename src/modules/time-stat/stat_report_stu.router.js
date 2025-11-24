@@ -43,7 +43,7 @@ const htmlStu = (data) => {
       <head>
       <title>รายงานสรุปการมาเรียนของนักเรียน</title>
         <style>
-          body { font-family: "TH Sarabun New", sans-serif; font-size: 18px; }
+                    body { font-size: 18px; }
           table { width: 100%; border-collapse: collapse; }
           th, td { border: 1px solid #000; padding: 6px; }
           th { background: #eee; }
