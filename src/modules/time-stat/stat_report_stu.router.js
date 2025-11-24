@@ -1,6 +1,7 @@
 const express = require("express")
 const ExcelJS = require("exceljs")
-const htmlToPdf = require("html-pdf-node");
+const PDFDocument = require("pdfkit");
+const sarabunBase64 = require("../../fonts/base64/sarabun");
 const { PrismaClient } = require("../../generated/prisma");
 const prisma = new PrismaClient();
 
@@ -19,63 +20,6 @@ const textMonth = {
   11: "พฤศจิกายน",
   12: "ธันวาคม",
 };
-const htmlStu = (data) => {
-  let rows = "";
-  data.forEach((r, i) => {
-    rows += `
-      <tr>
-        <td style="text-align:center;">${i + 1}</td>
-        <td style="text-align:left;">${r.stu_title}${r.stu_firstname} ${r.stu_lastname}</td>
-        <td style="text-align:center;">${r.stu_number}</td>
-        <td style="text-align:left;">${r.stu_class_level}</td>
-        <td style="text-align:center;">${r.absent}</td>
-        <td style="text-align:center;">${r.leave}</td>
-        <td style="text-align:center;">${r.sick}</td>
-        <td style="text-align:center;">${r.late}</td>
-      </tr>
-    `;
-  })
-
-
-
-  return `
-    <html>
-      <head>
-      <title>รายงานสรุปการมาเรียนของนักเรียน</title>
-        <style>
-                    body { font-size: 18px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #000; padding: 6px; }
-          th { background: #eee; }
-        </style>
-      </head>
-      <body>
-      <div style="text-align:center;"><h2>เวลาเรียนของนักเรียน</h2></div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th rowspan="2">ลำดับ</th>
-              <th rowspan="2">ชื่อ-สกุล</th>
-              <th rowspan="2">เลขที่</th>
-              <th rowspan="2">ชั้น</th>
-              <th colspan="4">จำนวนวันมาเรียน</th>
-            </tr>
-            <tr>
-              <th>ขาด</th>
-              <th>ลา</th>
-              <th>ป่วย</th>
-              <th>มาสาย</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      </body>
-    </html>
-  `;
-}
 router.get("/export-time-stat-stu-excel", async (req, res) => {
   try {
     const { startMonth, startYear, endMonth, endYear } = req.query;
@@ -206,9 +150,7 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
     if (startMonth && startYear && endMonth && endYear) {
       const startDate = new Date(Number(startYear) - 543, Number(startMonth) - 1, 1);
       const endDate = new Date(Number(endYear) - 543, Number(endMonth), 0);
-      where.time_stat_relation = {
-        date: { gte: startDate, lte: endDate }
-      };
+      where.time_stat_relation = { date: { gte: startDate, lte: endDate } };
     }
 
     const records = await prisma.time_stat_detail.findMany({
@@ -224,15 +166,14 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
       },
       where,
       orderBy: [
-        { student_class_level: 'asc' },
-        { student_number: 'asc' }
+        { student_class_level: "asc" },
+        { student_number: "asc" }
       ],
     });
 
     const studentMap = new Map();
     for (const record of records) {
-      const { s_id, student_title, student_first_name, student_last_name, student_number, remark, class_level_relation, time_stat_relation } = record;
-
+      const { s_id, student_title, student_first_name, student_last_name, student_number, remark, class_level_relation } = record;
       if (!studentMap.has(s_id)) {
         studentMap.set(s_id, {
           s_id,
@@ -245,45 +186,82 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
           leave: 0,
           sick: 0,
           late: 0,
-          attendance_dates: []
         });
       }
-
       const student = studentMap.get(s_id);
-
-      if (remark !== "come") {
-        student.attendance_dates.push({ date: time_stat_relation.date, remark });
-      }
-
       switch (remark) {
-        case 'absent': student.absent += 1; break;
-        case 'leave': student.leave += 1; break;
-        case 'sick': student.sick += 1; break;
-        case 'late': student.late += 1; break;
+        case "absent": student.absent += 1; break;
+        case "leave": student.leave += 1; break;
+        case "sick": student.sick += 1; break;
+        case "late": student.late += 1; break;
       }
     }
 
     const result = Array.from(studentMap.values());
-    const html = htmlStu(result);
 
-    // 🔥 แทน Puppeteer ด้วย html-pdf-node
-    const file = { content: html };
-    const options = {
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "20mm",
-        right: "15mm",
-        bottom: "20mm",
-        left: "15mm",
-      }
-    };
-
-    const pdfBuffer = await htmlToPdf.generatePdf(file, options);
+    // สร้าง PDF
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename=TimeStat_Student.pdf`);
-    res.send(pdfBuffer);
+    res.setHeader("Content-Disposition", "inline; filename=TimeStat_Student.pdf");
+
+    doc.pipe(res);
+    const sarabunRegular = Buffer.from(sarabunBase64.regular, "base64");
+    const sarabunBold = Buffer.from(sarabunBase64.bold, "base64");
+    // ฟอนต์ไทย
+        doc.registerFont("Sarabun", sarabunRegular);
+    doc.registerFont("Sarabun-Bold", sarabunBold);
+
+    // หัวเรื่อง
+    doc.font("Sarabun-Bold")
+       .fontSize(18)
+       .text("เวลาเรียนของนักเรียน", { align: "center" });
+
+    doc.moveDown();
+
+    // ตาราง
+    const tableTop = doc.y;
+    const itemHeight = 25;
+    const startX = 50;
+    const colWidths = [40, 170, 40, 80, 40, 40, 40, 45];
+
+    // Header
+    const headers = ["ลำดับ", "ชื่อ-สกุล", "เลขที่", "ชั้น", "ขาด", "ลา", "ป่วย", "มาสาย"];
+    headers.forEach((h, i) => {
+      doc.rect(startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), tableTop, colWidths[i], itemHeight).stroke();
+      doc.font("Sarabun").fontSize(11).text(h, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0) + 5, tableTop + 7, { width: colWidths[i] - 10, align: "center" });
+    });
+
+    let y = tableTop + itemHeight;
+
+    // Rows
+    result.forEach((stu, idx) => {
+      const values = [
+        idx + 1,
+        `${stu.stu_title}${stu.stu_firstname} ${stu.stu_lastname}`,
+        stu.stu_number,
+        stu.stu_class_level,
+        stu.absent,
+        stu.leave,
+        stu.sick,
+        stu.late
+      ];
+
+      values.forEach((val, i) => {
+        doc.rect(startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), y, colWidths[i], itemHeight).stroke();
+        const align = ["center","left","center","left","center","center","center","center"][i];
+        doc.font("Sarabun").fontSize(9).text(String(val), startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0) + 5, y + 7, { width: colWidths[i] - 10, align });
+      });
+      y += itemHeight;
+
+      // new page if overflow
+      if (y + itemHeight > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        y = doc.y;
+      }
+    });
+
+    doc.end();
 
   } catch (err) {
     console.error(err);

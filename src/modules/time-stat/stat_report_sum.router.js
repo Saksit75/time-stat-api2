@@ -101,7 +101,7 @@ router.get("/export-time-stat-sum-excel", async (req, res) => {
 
 
 /* =========================================================
-   == PDF EXPORT (ใช้ html-pdf-node) แทน puppeteer ==
+   == PDF EXPORT  ==
    ========================================================= */
 router.get("/export-time-stat-sum-pdf", async (req, res) => {
   try {
@@ -150,13 +150,13 @@ router.get("/export-time-stat-sum-pdf", async (req, res) => {
 
     // หัวเรื่อง
     doc.font("Sarabun-Bold")
-       .fontSize(20)
+       .fontSize(18)
        .text("รายงานสรุปการมาเรียนของนักเรียน", { align: "center" });
 
-    doc.moveDown(2);
+    doc.moveDown(1);
 
     // ตารางตัวอย่าง (Header)
-    const startX = 60, rowHeight = 30;
+    const startX = 50, rowHeight = 25;
     let startY = doc.y;
     const colWidths = [80, 100, 150, 120];
 
@@ -166,8 +166,8 @@ router.get("/export-time-stat-sum-pdf", async (req, res) => {
         doc.fillColor("#000000");
       }
       doc.rect(x, y, width, height).stroke();
-      doc.font(options.bold ? "Sarabun-Bold" : "Sarabun").fontSize(options.fontSize || 14);
-      const textY = y + (height - (options.fontSize || 14)) / 2;
+      doc.font(options.bold ? "Sarabun-Bold" : "Sarabun").fontSize(options.fontSize || 10);
+      const textY = y + (height - (options.fontSize || 8)) / 2;
       doc.text(text, x + 5, textY, { width: width-10, align: options.align || "left", lineBreak: false });
     };
 
@@ -175,7 +175,7 @@ router.get("/export-time-stat-sum-pdf", async (req, res) => {
     drawCell(startX, startY, colWidths[0], rowHeight, "ลำดับ", { bold:true, align:"center", fillColor:"#eeeeee" });
     drawCell(startX+colWidths[0], startY, colWidths[1], rowHeight, "ปี (พ.ศ.)", { bold:true, align:"center", fillColor:"#eeeeee" });
     drawCell(startX+colWidths[0]+colWidths[1], startY, colWidths[2], rowHeight, "เดือน", { bold:true, align:"center", fillColor:"#eeeeee" });
-    drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[3], rowHeight, "จำนวนวัน", { bold:true, align:"center", fillColor:"#eeeeee" });
+    drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[2], rowHeight, "จำนวนวัน", { bold:true, align:"center", fillColor:"#eeeeee" });
     startY += rowHeight;
 
     // Data rows
@@ -183,14 +183,14 @@ router.get("/export-time-stat-sum-pdf", async (req, res) => {
       drawCell(startX, startY, colWidths[0], rowHeight, String(i+1), { align:"center" });
       drawCell(startX+colWidths[0], startY, colWidths[1], rowHeight, String(r.year+543), { align:"center" });
       drawCell(startX+colWidths[0]+colWidths[1], startY, colWidths[2], rowHeight, textMonth[r.month], { align:"left" });
-      drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[3], rowHeight, String(r.count), { align:"right" });
+      drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[2], rowHeight, String(r.count), { align:"right" });
       startY += rowHeight;
     });
 
     // Summary
     drawCell(startX, startY, colWidths[0]+colWidths[1], rowHeight, "", {});
     drawCell(startX+colWidths[0]+colWidths[1], startY, colWidths[2], rowHeight, "รวมทั้งหมด", { bold:true, align:"left" });
-    drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[3], rowHeight, `${totalDays} วัน`, { bold:true, align:"right" });
+    drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[2], rowHeight, `${totalDays} วัน`, { bold:true, align:"right" });
 
     doc.end();
 
