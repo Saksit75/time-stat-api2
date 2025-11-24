@@ -187,7 +187,7 @@ const updateStudent = async (id, data, userActionId) => {
     return result;
 
   } catch (err) {
-    console.error(err);
+    // console.error(err);
     throw err;
   }
 };

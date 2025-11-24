@@ -8,6 +8,20 @@ const getStudentById = async (id) => {
   return await studentModel.getStudentById(id);
 };
 
+const createStudent = async (data, userActionId) => {
+  try {
+    if (data.file) {
+      const result = await uploadImage(data.file.buffer, 'students');
+      data.photoUrl = result.secure_url;
+      data.photoPublicId = result.public_id;
+    }
+    const result = await studentModel.createStudent(data, userActionId);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+};
+
 const updateStudent = async (id, data, userActionId) => {
   try {
     if (data.file) {
@@ -21,8 +35,7 @@ const updateStudent = async (id, data, userActionId) => {
     }
     return await studentModel.updateStudent(id, data, userActionId);
   } catch (error) {
-    console.error("Error updateStudent:", error);
-    return { message: "เกิดข้อผิดพลาด", error: error.message };
+    throw error;
   }
 }
 
@@ -41,20 +54,7 @@ const deleteStudent = async (id) => {
 }
 
 
-const createStudent = async (data, userActionId) => {
-  try {
-    if (data.file) {
-      const result = await uploadImage(data.file.buffer, 'students');
-      data.photoUrl = result.secure_url;
-      data.photoPublicId = result.public_id;
-    }
-    const result = await studentModel.createStudent(data, userActionId);
-    return result;
-  } catch (error) {
-    console.error("Error createStudent:", error);
-    return { message: "เกิดข้อผิดพลาด", error: error.message };
-  }
-};
+
 
 const getStudentByClassLevelId = async (class_level) => {
   try {

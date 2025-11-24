@@ -100,10 +100,8 @@ const createTeacher = async (data, userActionId) => {
     const result = await prisma.teacher.create({ data: prismaData });
     return result;
   } catch (err) {
-    if (err.code === "P2002") {
       throw new Error("ชื่อผู้ใช้ซ้ำในฐานข้อมูล");
-    }
-    throw err;
+    // throw err;
   }
 };
 
