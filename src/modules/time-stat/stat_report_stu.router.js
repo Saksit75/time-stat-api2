@@ -1,6 +1,6 @@
 const express = require("express")
 const ExcelJS = require("exceljs")
-const puppeteer = require("puppeteer");
+const htmlToPdf = require("html-pdf-node");
 const { PrismaClient } = require("../../generated/prisma");
 const prisma = new PrismaClient();
 
@@ -43,6 +43,7 @@ const htmlStu = (data) => {
       <head>
       <title>รายงานสรุปการมาเรียนของนักเรียน</title>
         <style>
+          body { font-family: "TH Sarabun New", sans-serif; font-size: 18px; }
           table { width: 100%; border-collapse: collapse; }
           th, td { border: 1px solid #000; padding: 6px; }
           th { background: #eee; }
@@ -200,6 +201,7 @@ router.get("/export-time-stat-stu-excel", async (req, res) => {
 router.get("/export-time-stat-stu-pdf", async (req, res) => {
   try {
     const { startMonth, startYear, endMonth, endYear } = req.query;
+
     const where = {};
     if (startMonth && startYear && endMonth && endYear) {
       const startDate = new Date(Number(startYear) - 543, Number(startMonth) - 1, 1);
@@ -208,6 +210,7 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
         date: { gte: startDate, lte: endDate }
       };
     }
+
     const records = await prisma.time_stat_detail.findMany({
       select: {
         s_id: true,
@@ -225,9 +228,11 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
         { student_number: 'asc' }
       ],
     });
+
     const studentMap = new Map();
     for (const record of records) {
       const { s_id, student_title, student_first_name, student_last_name, student_number, remark, class_level_relation, time_stat_relation } = record;
+
       if (!studentMap.has(s_id)) {
         studentMap.set(s_id, {
           s_id,
@@ -243,10 +248,13 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
           attendance_dates: []
         });
       }
+
       const student = studentMap.get(s_id);
+
       if (remark !== "come") {
         student.attendance_dates.push({ date: time_stat_relation.date, remark });
       }
+
       switch (remark) {
         case 'absent': student.absent += 1; break;
         case 'leave': student.leave += 1; break;
@@ -254,12 +262,13 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
         case 'late': student.late += 1; break;
       }
     }
+
     const result = Array.from(studentMap.values());
     const html = htmlStu(result);
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({
+
+    // 🔥 แทน Puppeteer ด้วย html-pdf-node
+    const file = { content: html };
+    const options = {
       format: "A4",
       printBackground: true,
       margin: {
@@ -267,9 +276,10 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
         right: "15mm",
         bottom: "20mm",
         left: "15mm",
-      },
-    });
-    await browser.close();
+      }
+    };
+
+    const pdfBuffer = await htmlToPdf.generatePdf(file, options);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename=TimeStat_Student.pdf`);
@@ -280,6 +290,7 @@ router.get("/export-time-stat-stu-pdf", async (req, res) => {
     res.status(500).send("Error exporting PDF");
   }
 });
+
 
 
 module.exports = router;
