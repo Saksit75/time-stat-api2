@@ -1,6 +1,7 @@
 const express = require("express")
 const ExcelJS = require("exceljs")
-const htmlToPdf = require("html-pdf-node");
+const PDFDocument = require("pdfkit");
+const sarabunBase64 = require("../../fonts/base64/sarabun");
 const { PrismaClient } = require("../../generated/prisma");
 const prisma = new PrismaClient();
 
@@ -19,58 +20,6 @@ const textMonth = {
   10: "ตุลาคม",
   11: "พฤศจิกายน",
   12: "ธันวาคม",
-};
-
-const htmlSum = (data, totalDays) => {
-  let rows = "";
-  data.forEach((r, i) => {
-    rows += `
-      <tr>
-        <td style="text-align:center;">${i + 1}</td>
-        <td style="text-align:center;">${r.year + 543}</td>
-        <td style="text-align:left;">${textMonth[r.month]}</td>
-        <td style="text-align:right;">${r.count}</td>
-      </tr>
-    `;
-  });
-
-  rows += `
-    <tr>
-      <td></td>
-      <td></td>
-      <td style="text-align:left;font-weight:bold;">รวมทั้งหมด</td>
-      <td style="text-align:right;font-weight:bold;">${totalDays} วัน</td>
-    </tr>
-  `;
-
-  return `
-    <html>
-      <head>
-        <style>
-          body { font-size: 18px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #000; padding: 6px; }
-          th { background: #eee; }
-        </style>
-      </head>
-      <body>
-        <div style="text-align: center;"><h2>รายงานสรุปการมาเรียนของนักเรียน</h2></div>
-        <table>
-          <thead>
-            <tr>
-              <th>ลำดับ</th>
-              <th>ปี (พ.ศ.)</th>
-              <th>เดือน</th>
-              <th>จำนวนวัน</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      </body>
-    </html>
-  `;
 };
 
 /* =========================================================
@@ -156,19 +105,19 @@ router.get("/export-time-stat-sum-excel", async (req, res) => {
    ========================================================= */
 router.get("/export-time-stat-sum-pdf", async (req, res) => {
   try {
+    // query date
     const { startMonth, startYear, endMonth, endYear } = req.query;
-
     const where = {};
     if (startMonth && startYear && endMonth && endYear) {
-      const startDate = new Date(`${Number(startYear) - 543}-${startMonth}-01`);
-      const endDate = new Date(`${Number(endYear) - 543}-${endMonth}-31`);
+      const startDate = new Date(`${Number(startYear)-543}-${startMonth}-01`);
+      const endDate = new Date(`${Number(endYear)-543}-${endMonth}-31`);
       where.date_time_stat = { gte: startDate, lte: endDate };
     }
 
     const records = await prisma.date_time_stat.findMany({
       select: { id: true, date_time_stat: true },
       where,
-      orderBy: { date_time_stat: 'asc' },
+      orderBy: { date_time_stat: "asc" },
     });
 
     const countMap = new Map();
@@ -181,37 +130,73 @@ router.get("/export-time-stat-sum-pdf", async (req, res) => {
     }
 
     const result = Array.from(countMap.entries()).map(([key, count]) => {
-      const [year, month] = key.split('-');
+      const [year, month] = key.split("-");
       return { year: Number(year), month: Number(month), count };
     });
 
     const totalDays = result.reduce((sum, r) => sum + r.count, 0);
 
-    const html = htmlSum(result, totalDays);
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "inline; filename=TimeStat_Summary.pdf");
+    doc.pipe(res);
 
-    // 🔥 ใช้ html-pdf-node สร้าง PDF
-    const file = { content: html };
-    const options = {
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "20mm",
-        right: "15mm",
-        bottom: "20mm",
-        left: "15mm",
+    // แปลง Base64 เป็น Buffer และลงทะเบียนฟอนต์
+    const sarabunRegular = Buffer.from(sarabunBase64.regular, "base64");
+    const sarabunBold = Buffer.from(sarabunBase64.bold, "base64");
+
+    doc.registerFont("Sarabun", sarabunRegular);
+    doc.registerFont("Sarabun-Bold", sarabunBold);
+
+    // หัวเรื่อง
+    doc.font("Sarabun-Bold")
+       .fontSize(20)
+       .text("รายงานสรุปการมาเรียนของนักเรียน", { align: "center" });
+
+    doc.moveDown(2);
+
+    // ตารางตัวอย่าง (Header)
+    const startX = 60, rowHeight = 30;
+    let startY = doc.y;
+    const colWidths = [80, 100, 150, 120];
+
+    const drawCell = (x, y, width, height, text, options={}) => {
+      if (options.fillColor) {
+        doc.fillColor(options.fillColor).rect(x, y, width, height).fill();
+        doc.fillColor("#000000");
       }
+      doc.rect(x, y, width, height).stroke();
+      doc.font(options.bold ? "Sarabun-Bold" : "Sarabun").fontSize(options.fontSize || 14);
+      const textY = y + (height - (options.fontSize || 14)) / 2;
+      doc.text(text, x + 5, textY, { width: width-10, align: options.align || "left", lineBreak: false });
     };
 
-    const pdfBuffer = await htmlToPdf.generatePdf(file, options);
+    // Header row
+    drawCell(startX, startY, colWidths[0], rowHeight, "ลำดับ", { bold:true, align:"center", fillColor:"#eeeeee" });
+    drawCell(startX+colWidths[0], startY, colWidths[1], rowHeight, "ปี (พ.ศ.)", { bold:true, align:"center", fillColor:"#eeeeee" });
+    drawCell(startX+colWidths[0]+colWidths[1], startY, colWidths[2], rowHeight, "เดือน", { bold:true, align:"center", fillColor:"#eeeeee" });
+    drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[3], rowHeight, "จำนวนวัน", { bold:true, align:"center", fillColor:"#eeeeee" });
+    startY += rowHeight;
 
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename=TimeStat_Summary.pdf`);
-    res.send(pdfBuffer);
+    // Data rows
+    result.forEach((r, i) => {
+      drawCell(startX, startY, colWidths[0], rowHeight, String(i+1), { align:"center" });
+      drawCell(startX+colWidths[0], startY, colWidths[1], rowHeight, String(r.year+543), { align:"center" });
+      drawCell(startX+colWidths[0]+colWidths[1], startY, colWidths[2], rowHeight, textMonth[r.month], { align:"left" });
+      drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[3], rowHeight, String(r.count), { align:"right" });
+      startY += rowHeight;
+    });
 
-  } catch (err) {
+    // Summary
+    drawCell(startX, startY, colWidths[0]+colWidths[1], rowHeight, "", {});
+    drawCell(startX+colWidths[0]+colWidths[1], startY, colWidths[2], rowHeight, "รวมทั้งหมด", { bold:true, align:"left" });
+    drawCell(startX+colWidths[0]+colWidths[1]+colWidths[2], startY, colWidths[3], rowHeight, `${totalDays} วัน`, { bold:true, align:"right" });
+
+    doc.end();
+
+  } catch(err){
     console.error(err);
     res.status(500).send("Error exporting PDF");
   }
 });
-
 module.exports = router;
